@@ -34,18 +34,34 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
+      - name: Find the project folder
+        id: proj
         shell: bash
         run: |
+          echo "Files in the repository (first 60):"
+          find . -path ./.git -prune -o -type f -print | head -60
+          f="$(find . -name settings.gradle -not -path './.git/*' | head -1)"
+          if [ -z "$f" ]; then
+            echo "settings.gradle was not found. The project files (app, build.gradle, settings.gradle) were not uploaded as separate files."
+            exit 1
+          fi
+          d="$(dirname "$f")"
+          echo "Project folder: $d"
+          echo "dir=$d" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        shell: bash
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: |
           set -o pipefail
-          gradle assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+          gradle assembleDebug --stacktrace --no-daemon 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
       - name: Upload the APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: bist21-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.proj.outputs.dir }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
       - name: Upload the build log (copy the errors from it)
